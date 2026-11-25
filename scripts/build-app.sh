@@ -11,7 +11,14 @@ rm -rf "$app_dir"
 mkdir -p "$app_dir/Contents/MacOS"
 mkdir -p "$app_dir/Contents/Resources"
 cp "$build_dir/ClaudeProfiles" "$app_dir/Contents/MacOS/ClaudeProfiles"
-node "$root_dir/scripts/make-icns.mjs" "$root_dir/Assets/AppIcon.png" "$app_dir/Contents/Resources/AppIcon.icns"
+iconset_dir="$(mktemp -d)/AppIcon.iconset"
+mkdir -p "$iconset_dir"
+for size in 16 32 128 256 512; do
+  sips -z $size $size "$root_dir/Assets/AppIcon.png" --out "$iconset_dir/icon_${size}x${size}.png" >/dev/null
+  sips -z $((size * 2)) $((size * 2)) "$root_dir/Assets/AppIcon.png" --out "$iconset_dir/icon_${size}x${size}@2x.png" >/dev/null
+done
+iconutil -c icns "$iconset_dir" -o "$app_dir/Contents/Resources/AppIcon.icns"
+rm -rf "${iconset_dir:h}"
 cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
