@@ -1,57 +1,90 @@
+<div align="center">
+
+<img src="Assets/AppIcon.png" alt="Claude Profiles icon" width="128" height="128">
+
 # Claude Profiles
 
-Local, open-source profile manager for the official Claude Desktop application.
-It starts Claude with a distinct Chromium/Electron `--user-data-dir` for every
-profile, letting two accounts keep separate sign-ins, settings and local data.
+**Two Claude Desktop accounts on one computer. Switch without signing out.**
 
-![Claude Profiles icon](Assets/AppIcon.png)
+[![macOS 15+](https://img.shields.io/badge/macOS-15%2B-000000?logo=apple&logoColor=white)](#macos)
+[![Ubuntu 22.04+](https://img.shields.io/badge/Ubuntu-22.04%2B-E95420?logo=ubuntu&logoColor=white)](#ubuntu--debian)
+[![Swift](https://img.shields.io/badge/Swift-AppKit-F05138?logo=swift&logoColor=white)](Sources/ClaudeProfiles)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-## Platforms
+</div>
 
-| Platform | Launcher | Requirements |
-| --- | --- | --- |
-| macOS 15+ | Native AppKit app | Apple Command Line Tools only — no full Xcode |
-| Ubuntu 22.04+ / Debian 12+ | Python/Tkinter desktop app | Python 3, Tkinter and official Claude Desktop |
+---
 
-The project deliberately supports **two profiles**: for example, Personal and
-Work. It does not include a server, analytics, cloud sync or paid components.
+Claude Profiles is a small, local launcher for the official Claude Desktop app.
+Each profile (for example **Personal** and **Work**) runs Claude with its own
+data folder, so each one keeps its own sign-in, settings, chats and local
+history. Both can be open at the same time.
+
+No server, no analytics, no cloud sync. It doesn't modify Claude.
+
+## Features
+
+- 🔐 **Separate sign-ins.** Every profile has its own Electron `--user-data-dir`.
+- ⭐ **Default profile.** Starting Claude from the Dock, from Spotlight or after an auto-update opens the default profile, already signed in.
+- 🟢 **Accurate status.** Running profiles are found from the real arguments of each Claude process, so the status stays right after relaunches.
+- 🧭 **Safe sign-in.** When a new profile needs to sign in, the launcher offers to close the other profile first, so the accounts don't get mixed up.
+- 🗑️ **Recoverable removal.** Removing a profile moves its data to the Trash. Nothing is deleted outright.
+- 🐧 **macOS and Linux.** A native AppKit app on macOS and a Tkinter app on Ubuntu/Debian.
+
+## How it works
+
+```mermaid
+flowchart LR
+    L["Claude Profiles"] -- "--user-data-dir=…/Personal" --> P["Claude · Personal"]
+    L -- "--user-data-dir=…/Work" --> W["Claude · Work"]
+    D["Dock · Spotlight · auto-update"] --> S["~/Library/Application Support/Claude"]
+    S -. "link to the ⭐ default profile" .-> P
+```
+
+Claude is an Electron app, and Electron keeps everything it stores in one data
+folder. The launcher gives each profile its own folder. Claude can also start
+without the launcher: from the Dock, from a `claude://` link, or when it
+relaunches itself after an update. To cover those starts, Claude's standard
+folder becomes a link to the profile marked with a star. If a real folder is
+already there, the launcher leaves it alone and says so in its window.
 
 ## Install
 
-Detailed, copy-pasteable steps are in [docs/INSTALL.md](docs/INSTALL.md).
+### macOS
 
-Quick start on macOS:
+Requires macOS 15+, Claude Desktop in `/Applications/Claude.app`, and the Apple
+Command Line Tools. You don't need the full Xcode.
 
 ```zsh
-git clone git@github.com:Abror-Mirzaaxmedov/claude-profiles.git
-cd claude-profiles
 xcode-select --install
+git clone https://github.com/Abror-Mirzaaxmedov/claude-profiles.git
+cd claude-profiles
 ./scripts/build-app.sh
 open "dist/Claude Profiles.app"
 ```
 
-Quick start on Ubuntu:
+### Ubuntu / Debian
+
+Requires Ubuntu 22.04+ or Debian 12+, the official `claude-desktop` package,
+and Python 3 with Tkinter.
 
 ```bash
-git clone git@github.com:Abror-Mirzaaxmedov/claude-profiles.git
-cd claude-profiles
 sudo apt install python3-tk
-chmod +x linux/install.sh
+git clone https://github.com/Abror-Mirzaaxmedov/claude-profiles.git
+cd claude-profiles
 ./linux/install.sh
 ```
 
-Install the official Claude Desktop application first. On Ubuntu, Anthropic
-provides it through its apt repository; the exact current commands are linked
-in the [installation guide](docs/INSTALL.md#ubuntu-2204--debian-12).
+Step-by-step instructions, including how to install Claude Desktop itself, are
+in the **[installation guide](docs/INSTALL.md)**.
 
-## What it does
+## First run
 
-- create, rename, duplicate, launch, stop and remove profiles;
-- keeps every profile in an independent Chromium/Electron data directory;
-- keeps profile metadata only on the local computer;
-- limits the interface to two profiles;
-- moves deleted data to a local recovery folder rather than deleting it
-  immediately.
+1. Open **Claude Profiles** and create `Personal`.
+2. Click **Launch** and sign in. The first profile becomes the ⭐ default.
+3. Create `Work`, launch it and sign in with the second account. When asked,
+   let the launcher close `Personal` until you have signed in.
+4. From then on, click **Launch** or **Show Claude** to move between accounts.
 
 ## Where data lives
 
@@ -60,45 +93,49 @@ in the [installation guide](docs/INSTALL.md#ubuntu-2204--debian-12).
 | macOS | `~/Library/Application Support/ClaudeProfiles/Profiles/` | `~/Library/Application Support/ClaudeProfiles/profiles.json` |
 | Linux | `~/.local/share/ClaudeProfiles/Profiles/` | `~/.config/ClaudeProfiles/profiles.json` |
 
-## Staying signed in
+## FAQ
 
-Claude can be started without this launcher: from the Dock or Spotlight, by a
-`claude://` link, or by Claude itself after an auto-update. Such a start has no
-`--user-data-dir` and uses `~/Library/Application Support/Claude`. To keep those
-starts signed in, Claude Profiles makes that path a link to the **default**
-profile (marked with a star; click the star on the other card to switch). If a
-real folder already sits there, it is never touched — the footer then explains
-how to fix it.
+<details>
+<summary><b>Why did Claude ask me to sign in again?</b></summary>
 
-Claude finishes browser sign-in through a `claude://` link, and macOS delivers
-it to any running Claude instance. When you launch a profile that is not signed
-in yet while the other one is running, the launcher offers to close the other
-one until sign-in is done, so the accounts don't get mixed up.
+Claude was probably started outside the launcher, and no profile was set as
+default yet. Open Claude Profiles once: it links Claude's standard folder to
+the ⭐ profile. If the window says a separate Claude folder is in the way, quit
+Claude and move `~/Library/Application Support/Claude` somewhere else.
+</details>
 
-Running profiles are detected from the real arguments of each Claude process,
-so the status stays right after Claude relaunches itself or the launcher restarts.
+<details>
+<summary><b>Why do both windows have the same Dock icon?</b></summary>
 
-## Important limitation
+All Claude windows come from the same app, so macOS shows one icon for them.
+Keep Claude Profiles in the Dock and use it to switch.
+</details>
 
-This is not an Anthropic-supported multi-profile API. It relies on the
-Chromium/Electron `--user-data-dir` flag, so after each Claude Desktop update
-open both profiles once and confirm that their accounts remain isolated.
+<details>
+<summary><b>Can I have more than two profiles?</b></summary>
 
-On macOS, all Claude instances share Anthropic's bundle identifier. macOS may
-therefore show the same Claude icon for both running instances; the separate
-**Claude Profiles** app is the launcher in the Dock.
+The interface is deliberately limited to two: one personal and one work account.
+</details>
 
-## Development checks
+## Limitations
+
+This is not an Anthropic-supported multi-account feature. It relies on the
+Electron `--user-data-dir` flag. After a major Claude Desktop update, open both
+profiles once and confirm that the accounts are still separate.
+
+Claude finishes browser sign-in through a `claude://` link, and macOS can hand
+that link to either running instance. That's why it's best to sign in while
+only that profile is open.
+
+## Development
 
 ```zsh
-# macOS app
-swift build
-
-# Linux launcher syntax and local prerequisite check
-python3 -m py_compile linux/claude_profiles.py
-python3 linux/claude_profiles.py --diagnose
+swift build                                     # macOS app
+python3 -m py_compile linux/claude_profiles.py  # Linux launcher
+python3 linux/claude_profiles.py --diagnose     # Linux prerequisites
 ```
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Claude Profiles is an independent project and is not
+affiliated with or endorsed by Anthropic.
