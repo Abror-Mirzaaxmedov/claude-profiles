@@ -1,0 +1,8 @@
+.build/
+dist/
+outputs/
+work/
+.swiftpm/
+.DS_Store
+__pycache__/
+*.py[cod]
