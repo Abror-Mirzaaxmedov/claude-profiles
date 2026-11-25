@@ -34,6 +34,7 @@ private final class ProfilesViewController: NSViewController {
     private let store: ProfileStore
     private let cardsStack = NSStackView()
     private let addButton = NSButton(title: "Add profile", target: nil, action: nil)
+    private let footer = NSTextField(wrappingLabelWithString: "")
     private var cancellable: AnyCancellable?
 
     init(store: ProfileStore) {
@@ -88,7 +89,6 @@ private final class ProfilesViewController: NSViewController {
         cardsStack.spacing = 12
         cardsStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let footer = NSTextField(labelWithString: "Local only  •  Separate sessions  •  No cloud sync")
         footer.font = .systemFont(ofSize: 12)
         footer.textColor = .tertiaryLabelColor
         footer.translatesAutoresizingMaskIntoConstraints = false
@@ -104,6 +104,7 @@ private final class ProfilesViewController: NSViewController {
             cardsStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
             cardsStack.topAnchor.constraint(equalTo: header.bottomAnchor, constant: 26),
             footer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 28),
+            footer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
             footer.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -24)
         ])
         reload()
@@ -123,6 +124,31 @@ private final class ProfilesViewController: NSViewController {
         }
         addButton.isHidden = store.profiles.count >= 2
         addButton.toolTip = "Add a second isolated Claude profile"
+        updateFooter()
+    }
+
+    private func updateFooter() {
+        var parts = ["Local only  •  Separate sessions  •  No cloud sync"]
+        footer.textColor = .tertiaryLabelColor
+        switch store.defaultFolderStatus {
+        case .linked:
+            if let profile = store.defaultProfile {
+                parts.append("Dock, Spotlight and Claude updates open \"\(profile.name)\".")
+            }
+        case .blockedByRealFolder:
+            footer.textColor = .systemOrange
+            parts.append("~/Library/Application Support/Claude is a separate, unmanaged Claude folder: opening Claude from the Dock or after an update signs into that one, not your profiles. Quit Claude and move that folder away to fix it.")
+        case .failed(let reason):
+            footer.textColor = .systemOrange
+            parts.append("Couldn’t link the default Claude folder: \(reason)")
+        case .none:
+            break
+        }
+        if store.unmanagedInstanceCount > 0 {
+            footer.textColor = .systemOrange
+            parts.append("\(store.unmanagedInstanceCount) Claude window(s) are running outside your profiles.")
+        }
+        footer.stringValue = parts.joined(separator: "\n")
     }
 
     private func makeEmptyState() -> NSView {
@@ -158,7 +184,11 @@ private final class ProfilesViewController: NSViewController {
         let avatar = makeAvatar(letter: profile.name.prefix(1).uppercased(), color: index == 0 ? .systemIndigo : .systemOrange)
         let name = NSTextField(labelWithString: profile.name)
         name.font = .systemFont(ofSize: 18, weight: .semibold)
-        let account = NSTextField(labelWithString: profile.accountLabel.isEmpty ? "Sign in on first launch" : profile.accountLabel)
+        var accountParts = [profile.accountLabel.isEmpty ? "No account label" : profile.accountLabel]
+        if !store.isSignedIn(profile) { accountParts.append("not signed in yet") }
+        if store.isDefault(profile) { accountParts.append("default — opens from Dock") }
+        let account = NSTextField(labelWithString: accountParts.joined(separator: "  •  "))
+        account.lineBreakMode = .byTruncatingTail
         account.font = .systemFont(ofSize: 13)
         account.textColor = .secondaryLabelColor
         let status = makeStatusBadge(isRunning ? "RUNNING" : "READY", active: isRunning)
@@ -174,17 +204,19 @@ private final class ProfilesViewController: NSViewController {
 
         let actions = ProfileSegmentedControl(labels: [], trackingMode: .momentary, target: self, action: #selector(profileAction(_:)))
         actions.profileID = profile.id
-        actions.segmentCount = 3
-        actions.setImage(NSImage(systemSymbolName: "stop.fill", accessibilityDescription: "Stop Claude"), forSegment: 0)
-        actions.setImage(NSImage(systemSymbolName: "pencil", accessibilityDescription: "Edit profile"), forSegment: 1)
-        actions.setImage(NSImage(systemSymbolName: "trash", accessibilityDescription: "Move profile to Trash"), forSegment: 2)
-        actions.setWidth(36, forSegment: 0)
-        actions.setWidth(36, forSegment: 1)
-        actions.setWidth(36, forSegment: 2)
-        actions.setEnabled(isRunning, forSegment: 0)
-        actions.setToolTip("Stop Claude", forSegment: 0)
-        actions.setToolTip("Edit profile", forSegment: 1)
-        actions.setToolTip("Move profile to Trash", forSegment: 2)
+        let isDefault = store.isDefault(profile)
+        actions.segmentCount = 4
+        actions.setImage(NSImage(systemSymbolName: isDefault ? "star.fill" : "star", accessibilityDescription: "Make default"), forSegment: 0)
+        actions.setImage(NSImage(systemSymbolName: "stop.fill", accessibilityDescription: "Stop Claude"), forSegment: 1)
+        actions.setImage(NSImage(systemSymbolName: "pencil", accessibilityDescription: "Edit profile"), forSegment: 2)
+        actions.setImage(NSImage(systemSymbolName: "trash", accessibilityDescription: "Move profile to Trash"), forSegment: 3)
+        (0..<4).forEach { actions.setWidth(36, forSegment: $0) }
+        actions.setEnabled(!isDefault, forSegment: 0)
+        actions.setEnabled(isRunning, forSegment: 1)
+        actions.setToolTip(isDefault ? "Default profile: Dock, Spotlight and updates open it" : "Make default (opens from Dock, Spotlight and after updates)", forSegment: 0)
+        actions.setToolTip("Stop Claude", forSegment: 1)
+        actions.setToolTip("Edit profile", forSegment: 2)
+        actions.setToolTip("Move profile to Trash", forSegment: 3)
 
         [avatar, name, account, status, launch, actions].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; card.addSubview($0) }
         NSLayoutConstraint.activate([
@@ -204,7 +236,8 @@ private final class ProfilesViewController: NSViewController {
             actions.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -18),
             actions.centerYAnchor.constraint(equalTo: card.centerYAnchor),
             actions.heightAnchor.constraint(equalToConstant: 34),
-            actions.widthAnchor.constraint(equalToConstant: 108),
+            actions.widthAnchor.constraint(equalToConstant: 148),
+            account.trailingAnchor.constraint(lessThanOrEqualTo: launch.leadingAnchor, constant: -12),
             launch.trailingAnchor.constraint(equalTo: actions.leadingAnchor, constant: -10),
             launch.centerYAnchor.constraint(equalTo: card.centerYAnchor),
             launch.heightAnchor.constraint(equalToConstant: 38),
@@ -266,46 +299,57 @@ private final class ProfilesViewController: NSViewController {
 
     @objc private func launchProfile(_ sender: NSButton) {
         guard let profile = profile(for: sender) else { return }
+        let others = store.otherRunningProfiles(than: profile)
+        if !store.isRunning(profile), !store.isSignedIn(profile), !others.isEmpty {
+            // Claude finishes browser sign-in through a claude:// link, and macOS hands that link
+            // to whichever Claude instance it likes — often the other profile, which then gets
+            // the wrong account (or this one never gets signed in).
+            let names = others.map(\.name).joined(separator: ", ")
+            let alert = NSAlert()
+            alert.messageText = "Close \(names) while you sign in?"
+            alert.informativeText = "Claude finishes sign-in through a link from the browser. With two Claude windows open, macOS may deliver it to \(names) instead of \(profile.name), mixing up the accounts. Reopen \(names) after you have signed in."
+            alert.addButton(withTitle: "Close and Launch")
+            alert.addButton(withTitle: "Launch Anyway")
+            alert.addButton(withTitle: "Cancel")
+            switch alert.runModal() {
+            case .alertFirstButtonReturn:
+                store.stop(others) { [weak self] in
+                    self?.store.launch(profile)
+                    self?.reload()
+                    self?.showErrorIfNeeded()
+                }
+                return
+            case .alertSecondButtonReturn:
+                break
+            default:
+                return
+            }
+        }
         store.launch(profile)
         reload()
         showErrorIfNeeded()
-    }
-
-    @objc private func stopProfile(_ sender: NSButton) {
-        guard let profile = profile(for: sender) else { return }
-        store.stop(profile)
-        reload()
     }
 
     @objc private func profileAction(_ sender: ProfileSegmentedControl) {
         guard let profile = profile(for: sender) else { return }
         switch sender.selectedSegment {
         case 0:
+            store.makeDefault(profile)
+            reload()
+            showErrorIfNeeded()
+        case 1:
             store.stop(profile)
             reload()
-        case 1:
+        case 2:
             guard let values = profileDialog(title: "Edit \(profile.name)", name: profile.name, accountLabel: profile.accountLabel) else { return }
             store.update(profile, name: values.name, accountLabel: values.accountLabel)
             reload()
             showErrorIfNeeded()
-        case 2:
+        case 3:
             confirmDelete(profile)
         default:
             break
         }
-    }
-
-    @objc private func editProfile(_ sender: NSButton) {
-        guard let profile = profile(for: sender),
-              let values = profileDialog(title: "Edit \(profile.name)", name: profile.name, accountLabel: profile.accountLabel) else { return }
-        store.update(profile, name: values.name, accountLabel: values.accountLabel)
-        reload()
-        showErrorIfNeeded()
-    }
-
-    @objc private func deleteProfile(_ sender: NSButton) {
-        guard let profile = profile(for: sender) else { return }
-        confirmDelete(profile)
     }
 
     private func confirmDelete(_ profile: ClaudeProfile) {

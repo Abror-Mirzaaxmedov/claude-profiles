@@ -60,6 +60,24 @@ in the [installation guide](docs/INSTALL.md#ubuntu-2204--debian-12).
 | macOS | `~/Library/Application Support/ClaudeProfiles/Profiles/` | `~/Library/Application Support/ClaudeProfiles/profiles.json` |
 | Linux | `~/.local/share/ClaudeProfiles/Profiles/` | `~/.config/ClaudeProfiles/profiles.json` |
 
+## Staying signed in
+
+Claude can be started without this launcher: from the Dock or Spotlight, by a
+`claude://` link, or by Claude itself after an auto-update. Such a start has no
+`--user-data-dir` and uses `~/Library/Application Support/Claude`. To keep those
+starts signed in, Claude Profiles makes that path a link to the **default**
+profile (marked with a star; click the star on the other card to switch). If a
+real folder already sits there, it is never touched — the footer then explains
+how to fix it.
+
+Claude finishes browser sign-in through a `claude://` link, and macOS delivers
+it to any running Claude instance. When you launch a profile that is not signed
+in yet while the other one is running, the launcher offers to close the other
+one until sign-in is done, so the accounts don't get mixed up.
+
+Running profiles are detected from the real arguments of each Claude process,
+so the status stays right after Claude relaunches itself or the launcher restarts.
+
 ## Important limitation
 
 This is not an Anthropic-supported multi-profile API. It relies on the
